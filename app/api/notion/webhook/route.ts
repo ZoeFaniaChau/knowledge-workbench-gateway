@@ -4,7 +4,16 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    console.log("Received Notion webhook:", body);
+    console.log("Notion webhook keys:", Object.keys(body));
+
+    console.log("Notion webhook summary:", {
+      id: body.id,
+      type: body.type,
+      timestamp: body.timestamp,
+      workspace_id: body.workspace_id,
+      entity_id: body.entity?.id,
+      entity_type: body.entity?.type,
+    });
 
     return NextResponse.json({
       ok: true,
