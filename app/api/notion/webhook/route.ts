@@ -28,19 +28,6 @@ export async function POST(request: Request) {
     const rawBody = await request.text();
     const signature = request.headers.get("x-notion-signature");
 
-    if (!verifyNotionSignature(rawBody, signature)) {
-      console.warn("Rejected Notion webhook: invalid signature");
-
-      return NextResponse.json(
-        {
-          ok: false,
-          received: false,
-          error: "Invalid webhook signature",
-        },
-        { status: 401 },
-      );
-    }
-
     let body: unknown;
 
     try {
@@ -53,6 +40,38 @@ export async function POST(request: Request) {
           error: "Invalid JSON payload",
         },
         { status: 400 },
+      );
+    }
+
+    // Notion sends the one-time verification token during subscription setup.
+    // This branch is intentionally temporary: remove the token log after it
+    // has been copied into NOTION_WEBHOOK_VERIFICATION_TOKEN.
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "verification_token" in body &&
+      typeof body.verification_token === "string" &&
+      !signature
+    ) {
+      console.warn("NOTION VERIFICATION TOKEN:", body.verification_token);
+
+      return NextResponse.json({
+        ok: true,
+        received: true,
+        verification: true,
+      });
+    }
+
+    if (!verifyNotionSignature(rawBody, signature)) {
+      console.warn("Rejected Notion webhook: invalid signature");
+
+      return NextResponse.json(
+        {
+          ok: false,
+          received: false,
+          error: "Invalid webhook signature",
+        },
+        { status: 401 },
       );
     }
 
