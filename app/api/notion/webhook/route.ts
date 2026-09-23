@@ -1,15 +1,45 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+
+function verifyNotionSignature(rawBody: string, signature: string | null): boolean {
+  const verificationToken = process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN;
+
+  if (!verificationToken || !signature?.startsWith("sha256=")) {
+    return false;
+  }
+
+  const receivedHex = signature.slice("sha256=".length);
+  const expectedHex = createHmac("sha256", verificationToken)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  const received = Buffer.from(receivedHex, "hex");
+  const expected = Buffer.from(expectedHex, "hex");
+
+  if (received.length !== expected.length) {
+    return false;
+  }
+
+  return timingSafeEqual(received, expected);
+}
 
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
     const signature = request.headers.get("x-notion-signature");
 
-    console.log("Notion webhook diagnostic:", {
-      hasSignature: Boolean(signature),
-      signaturePrefix: signature?.slice(0, 7),
-      bodyLength: rawBody.length,
-    });
+    if (!verifyNotionSignature(rawBody, signature)) {
+      console.warn("Rejected Notion webhook: invalid signature");
+
+      return NextResponse.json(
+        {
+          ok: false,
+          received: false,
+          error: "Invalid webhook signature",
+        },
+        { status: 401 },
+      );
+    }
 
     let body: unknown;
 
@@ -48,7 +78,7 @@ export async function POST(request: Request) {
       };
     };
 
-    console.log("Notion webhook summary:", {
+    console.log("Verified Notion webhook:", {
       id: payload.id,
       type: payload.type,
       timestamp: payload.timestamp,
@@ -60,6 +90,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       received: true,
+      verified: true,
     });
   } catch {
     return NextResponse.json(
