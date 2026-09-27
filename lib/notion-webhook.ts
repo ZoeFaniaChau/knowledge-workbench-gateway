@@ -3,10 +3,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export function verifyNotionSignature(
   rawBody: string,
   signature: string | null,
+  verificationToken = process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN,
 ): boolean {
-  const verificationToken =
-    process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN;
-
   if (!verificationToken || !signature?.startsWith("sha256=")) {
     return false;
   }
@@ -29,12 +27,7 @@ export function verifyNotionSignature(
 
 export function isNotionVerificationHandshake(
   body: unknown,
-  signature: string | null,
 ): body is { verification_token: string } {
-  if (signature !== null) {
-    return false;
-  }
-
   if (typeof body !== "object" || body === null) {
     return false;
   }

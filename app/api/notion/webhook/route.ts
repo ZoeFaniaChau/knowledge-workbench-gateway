@@ -35,11 +35,6 @@ export async function POST(request: Request) {
     const rawBody = await request.text();
     const signature = request.headers.get("x-notion-signature");
 
-    console.error("NOTION WEBHOOK DEBUG:", {
-      signature,
-      rawBody,
-    });
-
     let body: unknown;
 
     try {
@@ -55,18 +50,21 @@ export async function POST(request: Request) {
       );
     }
 
-    /*
-     * Notion sends a one-time verification token when establishing
-     * the webhook subscription.
-     *
-     * This is intentionally kept separate from ordinary webhook
-     * processing. The token is never logged or persisted here.
-     */
-    if (isNotionVerificationHandshake(body, signature)) {
-      console.error(
-        "NOTION VERIFICATION TOKEN:",
-        body.verification_token,
-      );
+    if (isNotionVerificationHandshake(body)) {
+      const verificationToken = body.verification_token;
+
+      if (!verifyNotionSignature(rawBody, signature, verificationToken)) {
+        console.warn("Rejected Notion verification handshake");
+
+        return NextResponse.json(
+          {
+            ok: false,
+            received: false,
+            error: "Invalid verification signature",
+          },
+          { status: 401 },
+        );
+      }
 
       return NextResponse.json({
         ok: true,
