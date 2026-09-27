@@ -8,7 +8,7 @@ import {
   richTextToMarkdown,
   type NotionBlock,
   type NotionRichText,
-} from "@/lib/markdown";
+} from "./markdown.ts";
 
 
 function requireEnv(name: string): string {
@@ -102,51 +102,72 @@ async function githubFetch(path: string, init: RequestInit = {}): Promise<Respon
   return fetch(GITHUB_API_BASE + path, { ...init, headers: { Accept: "application/vnd.github+json", Authorization: "Bearer " + token, "X-GitHub-Api-Version": "2022-11-28", ...(init.headers ?? {}) } });
 }
 
-async function writeGithubFile(path: string, content: string, message: string) {
+export async function writeGithubFile(path: string, content: string, message: string) {
   const encodedPath = path.split("/").map((part) => encodeURIComponent(part)).join("/");
   const endpoint = "/repos/" + GITHUB_REPOSITORY + "/contents/" + encodedPath;
-  const existing = await githubFetch(endpoint + "?ref=main");
-  let sha: string | undefined;
 
-  if (existing.ok) {
-    const existingFile = (await existing.json()) as {
-      sha?: string;
-      content?: string;
-      encoding?: string;
-    };
-    sha = existingFile.sha;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const existing = await githubFetch(endpoint + "?ref=main");
+    let sha: string | undefined;
 
-    if (existingFile.content && existingFile.encoding === "base64") {
-      const existingContent = Buffer.from(existingFile.content.replace(/\n/g, ""), "base64").toString("utf8");
-      if (existingContent === content) {
-        return {
-          skipped: true,
-          content: { path, sha },
-        };
+    if (existing.ok) {
+      const existingFile = (await existing.json()) as {
+        sha?: string;
+        content?: string;
+        encoding?: string;
+      };
+
+      sha = existingFile.sha;
+
+      if (existingFile.content && existingFile.encoding === "base64") {
+        const existingContent = Buffer.from(
+          existingFile.content.replace(/\n/g, ""),
+          "base64",
+        ).toString("utf8");
+
+        if (existingContent === content) {
+          return {
+            skipped: true,
+            content: { path, sha },
+          };
+        }
       }
+    } else if (existing.status !== 404) {
+      throw new Error(
+        "GitHub read " + existing.status + ": " + (await existing.text()),
+      );
     }
-  } else if (existing.status !== 404) {
-    throw new Error("GitHub read " + existing.status + ": " + (await existing.text()));
+
+    const response = await githubFetch(endpoint, {
+      method: "PUT",
+      body: JSON.stringify({
+        message,
+        content: Buffer.from(content, "utf8").toString("base64"),
+        branch: "main",
+        ...(sha ? { sha } : {}),
+      }),
+    });
+
+    if (response.ok) {
+      return {
+        skipped: false,
+        ...(await response.json()) as {
+          content?: { path?: string; sha?: string };
+          commit?: { sha?: string };
+        },
+      };
+    }
+
+    if (response.status === 409 && attempt < 2) {
+      continue;
+    }
+
+    throw new Error(
+      "GitHub write " + response.status + ": " + (await response.text()),
+    );
   }
 
-  const response = await githubFetch(endpoint, {
-    method: "PUT",
-    body: JSON.stringify({
-      message,
-      content: Buffer.from(content, "utf8").toString("base64"),
-      branch: "main",
-      ...(sha ? { sha } : {}),
-    }),
-  });
-
-  if (!response.ok) throw new Error("GitHub write " + response.status + ": " + (await response.text()));
-  return {
-    skipped: false,
-    ...(await response.json()) as {
-      content?: { path?: string; sha?: string };
-      commit?: { sha?: string };
-    },
-  };
+  throw new Error("GitHub write retry limit exceeded");
 }
 
 export async function syncNotionPage(pageId: string) {
