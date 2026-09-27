@@ -35,6 +35,11 @@ export async function POST(request: Request) {
     const rawBody = await request.text();
     const signature = request.headers.get("x-notion-signature");
 
+    console.error("NOTION WEBHOOK DEBUG:", {
+      signature,
+      rawBody,
+    });
+
     let body: unknown;
 
     try {
