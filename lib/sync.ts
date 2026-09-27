@@ -192,10 +192,10 @@ async function writeGithubFile(path: string, content: string, message: string) {
 
 export async function syncNotionPage(pageId: string) {
   try {
-    await updateNotionSyncStatus(pageId, "Pending");
-
     const manifestEntry = await getManifestEntry(pageId);
     if (!manifestEntry) return { synced: false, reason: "page_not_in_manifest", pageId };
+
+    await updateNotionSyncStatus(pageId, "Pending");
 
     const page = await getPage(pageId);
     const blocks = await getBlockChildren(pageId);
@@ -214,6 +214,7 @@ export async function syncNotionPage(pageId: string) {
 
     return {
       synced: true,
+      skipped: result.skipped,
       pageId,
       title,
       path: manifestEntry.path,
