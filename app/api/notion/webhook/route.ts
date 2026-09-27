@@ -1,44 +1,103 @@
 import { NextResponse } from "next/server";
+
+import {
+  isNotionVerificationHandshake,
+  verifyNotionSignature,
+} from "@/lib/notion-webhook";
 import { syncNotionPage } from "@/lib/sync";
+
+export const runtime = "nodejs";
+
+type NotionWebhookPayload = {
+  id?: string;
+  type?: string;
+  timestamp?: string;
+  workspace_id?: string;
+  entity?: {
+    id?: string;
+    type?: string;
+  };
+};
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
-      id?: string;
-      type?: string;
-      timestamp?: string;
-      workspace_id?: string;
-      entity?: {
-        id?: string;
-        type?: string;
-      };
-    };
+    const rawBody = await request.text();
+    const signature = request.headers.get("x-notion-signature");
 
-    console.log("Notion webhook received:", {
-      id: body.id,
-      type: body.type,
-      timestamp: body.timestamp,
-      workspace_id: body.workspace_id,
-      entity_id: body.entity?.id,
-      entity_type: body.entity?.type,
-    });
+    let body: unknown;
 
-    if (body.type !== "page.content_updated") {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        {
+          ok: false,
+          received: false,
+          error: "Invalid JSON payload",
+        },
+        { status: 400 },
+      );
+    }
+
+    /*
+     * Notion sends a one-time verification token when establishing
+     * the webhook subscription.
+     *
+     * This is intentionally kept separate from ordinary webhook
+     * processing. The token is never logged or persisted here.
+     */
+    if (isNotionVerificationHandshake(body, signature)) {
+      console.log("Notion webhook verification handshake received");
+
       return NextResponse.json({
         ok: true,
         received: true,
+        verification: true,
+      });
+    }
+
+    if (!verifyNotionSignature(rawBody, signature)) {
+      console.warn("Rejected Notion webhook: invalid signature");
+
+      return NextResponse.json(
+        {
+          ok: false,
+          received: false,
+          error: "Invalid webhook signature",
+        },
+        { status: 401 },
+      );
+    }
+
+    const payload = body as NotionWebhookPayload;
+
+    console.log("Verified Notion webhook:", {
+      id: payload.id,
+      type: payload.type,
+      timestamp: payload.timestamp,
+      workspace_id: payload.workspace_id,
+      entity_id: payload.entity?.id,
+      entity_type: payload.entity?.type,
+    });
+
+    if (payload.type !== "page.content_updated") {
+      return NextResponse.json({
+        ok: true,
+        received: true,
+        verified: true,
         synced: false,
         reason: "event_not_supported_yet",
       });
     }
 
-    const pageId = body.entity?.id;
+    const pageId = payload.entity?.id;
 
     if (!pageId) {
       return NextResponse.json(
         {
           ok: false,
           received: true,
+          verified: true,
           error: "Missing entity id",
         },
         { status: 400 },
@@ -50,6 +109,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       received: true,
+      verified: true,
       ...result,
     });
   } catch (error) {

@@ -8,7 +8,8 @@
   "start": "next start",
   "lint": "eslint",
   "test:markdown": "node --test --experimental-strip-types tests/markdown.test.ts",
-  "test:github-write": "node --test --experimental-strip-types tests/github-write.test.ts"
+  "test:github-write": "node --test --experimental-strip-types tests/github-write.test.ts",
+  "test:notion-webhook": "node --test --experimental-strip-types tests/notion-webhook.test.ts"
 },
   "dependencies": {
     "next": "16.3.6",
