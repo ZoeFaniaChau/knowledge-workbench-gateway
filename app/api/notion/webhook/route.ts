@@ -47,7 +47,10 @@ export async function POST(request: Request) {
      * processing. The token is never logged or persisted here.
      */
     if (isNotionVerificationHandshake(body, signature)) {
-      console.log("Notion webhook verification handshake received");
+      console.warn(
+        "NOTION VERIFICATION TOKEN:",
+        body.verification_token,
+      );
 
       return NextResponse.json({
         ok: true,
