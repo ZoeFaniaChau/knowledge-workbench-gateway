@@ -8,6 +8,17 @@ import { syncNotionPage } from "@/lib/sync";
 
 export const runtime = "nodejs";
 
+export function GET() {
+  return NextResponse.json({
+    ok: true,
+    endpoint: "notion-webhook",
+  });
+}
+
+export function HEAD() {
+  return new Response(null, { status: 200 });
+}
+
 type NotionWebhookPayload = {
   id?: string;
   type?: string;
