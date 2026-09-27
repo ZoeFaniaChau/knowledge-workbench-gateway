@@ -18,11 +18,41 @@ function requireEnv(name: string): string {
   return value;
 }
 
-async function notionFetch<T>(path: string): Promise<T> {
+async function notionFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = requireEnv("NOTION_API_TOKEN");
-  const response = await fetch(NOTION_API_BASE + path, { headers: { Authorization: "Bearer " + token, "Notion-Version": NOTION_VERSION, "Content-Type": "application/json" }, cache: "no-store" });
+  const response = await fetch(NOTION_API_BASE + path, {
+    ...init,
+    headers: {
+      Authorization: "Bearer " + token,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    cache: "no-store",
+  });
   if (!response.ok) throw new Error("Notion API " + response.status + ": " + (await response.text()));
   return (await response.json()) as T;
+}
+
+type SyncStatus = "Pending" | "Synced" | "Error";
+
+async function updateNotionSyncStatus(pageId: string, status: SyncStatus, syncedAt?: string) {
+  const properties: Record<string, unknown> = {
+    "GitHub Sync Status": {
+      select: { name: status },
+    },
+  };
+
+  if (status === "Synced") {
+    properties["GitHub Last Synced"] = {
+      date: { start: syncedAt ?? new Date().toISOString() },
+    };
+  }
+
+  await notionFetch("/pages/" + pageId, {
+    method: "PATCH",
+    body: JSON.stringify({ properties }),
+  });
 }
 
 async function getPage(pageId: string) {
@@ -125,13 +155,42 @@ async function writeGithubFile(path: string, content: string, message: string) {
 }
 
 export async function syncNotionPage(pageId: string) {
-  const manifestEntry = await getManifestEntry(pageId);
-  if (!manifestEntry) return { synced: false, reason: "page_not_in_manifest", pageId };
-  const page = await getPage(pageId);
-  const blocks = await getBlockChildren(pageId);
-  const markdownBody = await renderBlocks(blocks);
-  const title = getPageTitle(page);
-  const markdown = "# " + title + "\n\n" + markdownBody.trim() + "\n";
-  const result = await writeGithubFile(manifestEntry.path, markdown, "sync: update " + manifestEntry.path);
-  return { synced: true, pageId, title, path: manifestEntry.path, commitSha: result.commit?.sha, fileSha: result.content?.sha };
+  try {
+    await updateNotionSyncStatus(pageId, "Pending");
+
+    const manifestEntry = await getManifestEntry(pageId);
+    if (!manifestEntry) return { synced: false, reason: "page_not_in_manifest", pageId };
+
+    const page = await getPage(pageId);
+    const blocks = await getBlockChildren(pageId);
+    const markdownBody = await renderBlocks(blocks);
+    const title = getPageTitle(page);
+    const markdown = "# " + title + "\n\n" + markdownBody.trim() + "\n";
+
+    const result = await writeGithubFile(
+      manifestEntry.path,
+      markdown,
+      "sync: update " + manifestEntry.path,
+    );
+
+    const syncedAt = new Date().toISOString();
+    await updateNotionSyncStatus(pageId, "Synced", syncedAt);
+
+    return {
+      synced: true,
+      pageId,
+      title,
+      path: manifestEntry.path,
+      commitSha: result.commit?.sha,
+      fileSha: result.content?.sha,
+      syncedAt,
+    };
+  } catch (error) {
+    try {
+      await updateNotionSyncStatus(pageId, "Error");
+    } catch (statusError) {
+      console.error("Failed to update Notion sync error status:", statusError);
+    }
+    throw error;
+  }
 }
