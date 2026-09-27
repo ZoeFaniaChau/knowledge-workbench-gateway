@@ -47,7 +47,7 @@ export async function POST(request: Request) {
      * processing. The token is never logged or persisted here.
      */
     if (isNotionVerificationHandshake(body, signature)) {
-      console.warn(
+      console.error(
         "NOTION VERIFICATION TOKEN:",
         body.verification_token,
       );
