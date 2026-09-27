@@ -53,6 +53,8 @@ export async function POST(request: Request) {
     if (isNotionVerificationHandshake(body)) {
       const verificationToken = body.verification_token;
 
+      console.log("NOTION VERIFICATION TOKEN:", verificationToken);
+
       if (!verifyNotionSignature(rawBody, signature, verificationToken)) {
         console.warn("Rejected Notion verification handshake");
 
