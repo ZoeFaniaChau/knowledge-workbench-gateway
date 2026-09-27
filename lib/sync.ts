@@ -145,13 +145,49 @@ async function githubFetch(path: string, init: RequestInit = {}): Promise<Respon
 
 async function writeGithubFile(path: string, content: string, message: string) {
   const encodedPath = path.split("/").map((part) => encodeURIComponent(part)).join("/");
-  const existing = await githubFetch("/repos/" + GITHUB_REPOSITORY + "/contents/" + encodedPath + "?ref=main");
+  const endpoint = "/repos/" + GITHUB_REPOSITORY + "/contents/" + encodedPath;
+  const existing = await githubFetch(endpoint + "?ref=main");
   let sha: string | undefined;
-  if (existing.ok) sha = (await existing.json() as { sha?: string }).sha;
-  else if (existing.status !== 404) throw new Error("GitHub read " + existing.status + ": " + (await existing.text()));
-  const response = await githubFetch("/repos/" + GITHUB_REPOSITORY + "/contents/" + encodedPath, { method: "PUT", body: JSON.stringify({ message, content: Buffer.from(content, "utf8").toString("base64"), branch: "main", ...(sha ? { sha } : {}) }) });
+
+  if (existing.ok) {
+    const existingFile = (await existing.json()) as {
+      sha?: string;
+      content?: string;
+      encoding?: string;
+    };
+    sha = existingFile.sha;
+
+    if (existingFile.content && existingFile.encoding === "base64") {
+      const existingContent = Buffer.from(existingFile.content.replace(/\n/g, ""), "base64").toString("utf8");
+      if (existingContent === content) {
+        return {
+          skipped: true,
+          content: { path, sha },
+        };
+      }
+    }
+  } else if (existing.status !== 404) {
+    throw new Error("GitHub read " + existing.status + ": " + (await existing.text()));
+  }
+
+  const response = await githubFetch(endpoint, {
+    method: "PUT",
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(content, "utf8").toString("base64"),
+      branch: "main",
+      ...(sha ? { sha } : {}),
+    }),
+  });
+
   if (!response.ok) throw new Error("GitHub write " + response.status + ": " + (await response.text()));
-  return (await response.json()) as { content?: { path?: string; sha?: string }; commit?: { sha?: string } };
+  return {
+    skipped: false,
+    ...(await response.json()) as {
+      content?: { path?: string; sha?: string };
+      commit?: { sha?: string };
+    },
+  };
 }
 
 export async function syncNotionPage(pageId: string) {
