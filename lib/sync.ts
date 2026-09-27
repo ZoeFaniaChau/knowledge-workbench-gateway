@@ -3,14 +3,13 @@ const GITHUB_API_BASE = "https://api.github.com";
 const NOTION_VERSION = process.env.NOTION_API_VERSION ?? "2026-03-11";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY ?? "ZoeFaniaChau/knowledge-workbench";
 
-type NotionRichText = {
-  type: string;
-  plain_text?: string;
-  text?: { content?: string; link?: { url?: string } | null };
-  annotations?: { bold?: boolean; italic?: boolean; strikethrough?: boolean; code?: boolean };
-};
+import {
+  blockToMarkdown,
+  richTextToMarkdown,
+  type NotionBlock,
+  type NotionRichText,
+} from "@/lib/markdown";
 
-type NotionBlock = { id: string; type: string; has_children?: boolean; [key: string]: unknown };
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -69,46 +68,6 @@ async function getBlockChildren(blockId: string): Promise<NotionBlock[]> {
     cursor = response.has_more && response.next_cursor ? response.next_cursor : undefined;
   } while (cursor);
   return blocks;
-}
-
-function escapeMarkdown(text: string): string { return text.replace(/\\/g, "\\\\"); }
-
-function richTextToMarkdown(items: NotionRichText[] = []): string {
-  return items.map((item) => {
-    let text = escapeMarkdown(item.plain_text ?? item.text?.content ?? "");
-    const link = item.text?.link?.url;
-    if (link) text = "[" + text + "](" + link + ")";
-    if (item.annotations?.code) text = String.fromCharCode(96) + text + String.fromCharCode(96);
-    if (item.annotations?.bold) text = "**" + text + "**";
-    if (item.annotations?.italic) text = "*" + text + "*";
-    if (item.annotations?.strikethrough) text = "~~" + text + "~~";
-    return text;
-  }).join("");
-}
-
-function blockText(block: NotionBlock): string {
-  const data = block[block.type] as { rich_text?: NotionRichText[] } | undefined;
-  return richTextToMarkdown(data?.rich_text);
-}
-
-function blockToMarkdown(block: NotionBlock, depth = 0): string {
-  const text = blockText(block); const indent = "  ".repeat(depth);
-  switch (block.type) {
-    case "paragraph": return text;
-    case "heading_1": return "# " + text;
-    case "heading_2": return "## " + text;
-    case "heading_3": return "### " + text;
-    case "bulleted_list_item": return indent + "- " + text;
-    case "numbered_list_item": return indent + "1. " + text;
-    case "to_do": { const data = block.to_do as { checked?: boolean } | undefined; return indent + "- [" + (data?.checked ? "x" : " ") + "] " + text; }
-    case "quote": return text.split("\n").map((line) => "> " + line).join("\n");
-    case "callout": return "> " + text;
-    case "code": { const data = block.code as { language?: string; rich_text?: NotionRichText[] }; const code = richTextToMarkdown(data.rich_text); return "```" + (data.language ?? "") + "\n" + code + "\n```"; }
-    case "divider": return "---";
-    case "bookmark":
-    case "embed": return text;
-    default: return text;
-  }
 }
 
 async function renderBlocks(blocks: NotionBlock[], depth = 0): Promise<string> {
