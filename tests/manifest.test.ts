@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildManifestEntry,
   isGithubTarget,
+  isValidGithubPath,
   upsertManifestEntry,
   type Manifest,
   type NotionManifestCandidate,
@@ -93,4 +94,69 @@ test("upsert removes an entry when GitHub output is disabled", () => {
   });
 
   assert.equal(result.objects["page-1"], undefined);
+});
+test("accepts a normal relative GitHub path", () => {
+  assert.equal(
+    isValidGithubPath(
+      "knowledge/research/模块化不是拆分，而是让变化有边界.md",
+    ),
+    true,
+  );
+});
+
+test("rejects an absolute GitHub path", () => {
+  assert.equal(
+    isValidGithubPath("/knowledge/research/example.md"),
+    false,
+  );
+});
+
+test("rejects parent-directory traversal", () => {
+  assert.equal(
+    isValidGithubPath("../knowledge/example.md"),
+    false,
+  );
+
+  assert.equal(
+    isValidGithubPath("knowledge/../example.md"),
+    false,
+  );
+});
+
+test("rejects URLs", () => {
+  assert.equal(
+    isValidGithubPath("https://example.com/example.md"),
+    false,
+  );
+
+  assert.equal(
+    isValidGithubPath("http://example.com/example.md"),
+    false,
+  );
+});
+
+test("rejects Markdown links", () => {
+  assert.equal(
+    isValidGithubPath("[example.md](http://example.md)"),
+    false,
+  );
+
+  assert.equal(
+    isValidGithubPath(
+      "knowledge/research/[example.md](http://example.md)",
+    ),
+    false,
+  );
+});
+
+test("rejects paths containing line breaks", () => {
+  assert.equal(
+    isValidGithubPath("knowledge/research/example\n.md"),
+    false,
+  );
+});
+
+test("rejects an empty path", () => {
+  assert.equal(isValidGithubPath(""), false);
+  assert.equal(isValidGithubPath("   "), false);
 });

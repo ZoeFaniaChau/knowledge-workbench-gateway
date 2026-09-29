@@ -11,7 +11,9 @@
     "test:github-write": "node --test --experimental-strip-types tests/github-write.test.ts",
     "test:notion-webhook": "node --test --experimental-strip-types tests/notion-webhook.test.ts",
     "test:sync": "node --test --experimental-strip-types tests/sync.test.ts",
-    "test:manifest": "node --test --experimental-strip-types tests/manifest.test.ts"
+    "test:manifest": "node --test --experimental-strip-types tests/manifest.test.ts",
+    "test:manifest-source": "node --test --experimental-strip-types tests/manifest-source.test.ts",
+    "test:notion-data-source": "node --test --experimental-strip-types tests/notion-data-source.test.ts"
   },
   "dependencies": {
     "next": "16.3.6",

@@ -20,6 +20,37 @@ export type NotionManifestCandidate = {
   githubPath: string;
 };
 
+export function isValidGithubPath(path: string): boolean {
+  const value = path.trim();
+
+  if (!value) {
+    return false;
+  }
+
+  if (value.startsWith("/")) {
+    return false;
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return false;
+  }
+
+  if (value.includes("\n") || value.includes("\r")) {
+    return false;
+  }
+
+  if (value.includes("](") || value.includes(")[")) {
+    return false;
+  }
+
+  const segments = value.split("/");
+
+  if (segments.some((segment) => segment === "..")) {
+    return false;
+  }
+
+  return true;
+}
 export function isGithubTarget(candidate: NotionManifestCandidate): boolean {
   return candidate.outputTarget.includes("GitHub");
 }
@@ -33,7 +64,7 @@ export function buildManifestEntry(
 
   const path = candidate.githubPath.trim();
 
-  if (!path) {
+  if (!isValidGithubPath(path)) {
     return null;
   }
 
