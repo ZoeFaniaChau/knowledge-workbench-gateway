@@ -35,7 +35,12 @@ async function notionFetch<T>(path: string, init: RequestInit = {}): Promise<T> 
 
 type SyncStatus = "Pending" | "Synced" | "Error";
 
-async function updateNotionSyncStatus(pageId: string, status: SyncStatus, syncedAt?: string) {
+async function updateNotionSyncStatus(
+  pageId: string,
+  status: SyncStatus,
+  syncedAt?: string,
+  githubUrl?: string,
+) {
   const properties: Record<string, unknown> = {
     "GitHub Sync Status": {
       select: { name: status },
@@ -44,8 +49,16 @@ async function updateNotionSyncStatus(pageId: string, status: SyncStatus, synced
 
   if (status === "Synced") {
     properties["GitHub Last Synced"] = {
-      date: { start: syncedAt ?? new Date().toISOString() },
+      date: {
+        start: syncedAt ?? new Date().toISOString(),
+      },
     };
+
+    if (githubUrl) {
+      properties["GitHub URL"] = {
+        url: githubUrl,
+      };
+    }
   }
 
   await notionFetch("/pages/" + pageId, {
@@ -190,7 +203,18 @@ export async function syncNotionPage(pageId: string) {
     );
 
     const syncedAt = new Date().toISOString();
-    await updateNotionSyncStatus(pageId, "Synced", syncedAt);
+    const githubUrl =
+      "https://github.com/" +
+      GITHUB_REPOSITORY +
+      "/blob/main/" +
+      manifestEntry.path;
+
+    await updateNotionSyncStatus(
+      pageId,
+      "Synced",
+      syncedAt,
+      githubUrl,
+    );
 
     return {
       synced: true,
