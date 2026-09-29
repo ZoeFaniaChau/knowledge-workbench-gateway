@@ -15,7 +15,8 @@
     "test:manifest-source": "node --test --experimental-strip-types tests/manifest-source.test.ts",
     "test:notion-data-source": "node --test --experimental-strip-types tests/notion-data-source.test.ts",
     "test:manifest-diff": "node --test --experimental-strip-types tests/manifest-diff.test.ts",
-    "test:github-manifest": "node --test --experimental-strip-types tests/github-manifest.test.ts"
+    "test:github-manifest": "node --test --experimental-strip-types tests/github-manifest.test.ts",
+    "test:manifest-sync": "node --test --experimental-strip-types tests/manifest-sync.test.ts"
   },
   "dependencies": {
     "next": "16.3.6",
