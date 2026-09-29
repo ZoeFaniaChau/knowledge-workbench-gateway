@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readGithubManifest } from "../lib/github-manifest.ts";
+import {
+  readGithubManifest,
+  writeGithubManifest,
+} from "../lib/github-manifest.ts";
 
 function installFetch(
   responseBody: unknown,
@@ -114,7 +117,7 @@ test("rejects a failed GitHub manifest request", async () => {
 
   await assert.rejects(
     () => readGithubManifest(),
-    /GitHub manifest read 404/,
+    /GitHub manifest read 404:.*Not Found/,
   );
 });
 
@@ -130,6 +133,49 @@ test("rejects a GitHub response without base64 content", async () => {
 
   await assert.rejects(
     () => readGithubManifest(),
-    /does not contain base64 content/,
+    /has no base64 content/,
+  );
+});
+
+test("writes the GitHub manifest to the fixed manifest path", async () => {
+  process.env.GITHUB_TOKEN = "test-token";
+  process.env.GITHUB_REPOSITORY =
+    "ZoeFaniaChau/knowledge-workbench";
+
+  const calls = installFetch({
+    content: "",
+    encoding: "base64",
+  });
+
+  await writeGithubManifest(manifest);
+
+  assert.equal(calls.length, 2);
+
+  assert.equal(
+    calls[0].url,
+    "https://api.github.com/repos/ZoeFaniaChau/knowledge-workbench/contents/sync/manifest.json?ref=main",
+  );
+
+  assert.equal(
+    calls[1].url,
+    "https://api.github.com/repos/ZoeFaniaChau/knowledge-workbench/contents/sync/manifest.json",
+  );
+
+  assert.equal(calls[1].init?.method, "PUT");
+
+  const body = JSON.parse(
+    String(calls[1].init?.body),
+  ) as {
+    message?: string;
+    content?: string;
+    branch?: string;
+  };
+
+  assert.equal(body.message, "sync: update manifest");
+  assert.equal(body.branch, "main");
+
+  assert.equal(
+    Buffer.from(body.content ?? "", "base64").toString("utf8"),
+    JSON.stringify(manifest, null, 2) + "\n",
   );
 });

@@ -1,4 +1,5 @@
 import type { Manifest } from "./manifest.ts";
+import { writeGithubFile } from "./sync.ts";
 
 const GITHUB_API_BASE = "https://api.github.com";
 
@@ -35,24 +36,18 @@ async function githubFetch(
 }
 
 export async function readGithubManifest(): Promise<Manifest> {
-  const repository = GITHUB_REPOSITORY.split("/");
+  const encodedPath = "sync/manifest.json"
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
 
-  if (repository.length !== 2) {
-    throw new Error(
-      "GITHUB_REPOSITORY must use owner/repository format",
-    );
-  }
-
-  const [owner, repo] = repository;
-
-  const endpoint =
+  const response = await githubFetch(
     "/repos/" +
-    encodeURIComponent(owner) +
-    "/" +
-    encodeURIComponent(repo) +
-    "/contents/sync/manifest.json?ref=main";
-
-  const response = await githubFetch(endpoint);
+      GITHUB_REPOSITORY +
+      "/contents/" +
+      encodedPath +
+      "?ref=main",
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -69,9 +64,7 @@ export async function readGithubManifest(): Promise<Manifest> {
   };
 
   if (!file.content || file.encoding !== "base64") {
-    throw new Error(
-      "GitHub manifest response does not contain base64 content",
-    );
+    throw new Error("GitHub manifest response has no base64 content");
   }
 
   const content = Buffer.from(
@@ -80,4 +73,17 @@ export async function readGithubManifest(): Promise<Manifest> {
   ).toString("utf8");
 
   return JSON.parse(content) as Manifest;
+}
+
+export async function writeGithubManifest(
+  manifest: Manifest,
+) {
+  const content =
+    JSON.stringify(manifest, null, 2) + "\n";
+
+  return writeGithubFile(
+    "sync/manifest.json",
+    content,
+    "sync: update manifest",
+  );
 }
