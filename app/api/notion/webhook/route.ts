@@ -4,6 +4,7 @@ import {
   isNotionVerificationHandshake,
   verifyNotionSignature,
 } from "@/lib/notion-webhook";
+import { applyManifestSync, computeManifestSync } from "@/lib/manifest-sync";
 import { syncNotionPage } from "@/lib/sync";
 
 export const runtime = "nodejs";
@@ -30,6 +31,14 @@ type NotionWebhookPayload = {
   };
 };
 
+const MANIFEST_EVENTS = new Set([
+  "page.properties_updated",
+  "page.created",
+  "page.deleted",
+  "page.undeleted",
+  "data_source.content_updated",
+]);
+
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
@@ -52,7 +61,6 @@ export async function POST(request: Request) {
 
     if (isNotionVerificationHandshake(body)) {
       const verificationToken = body.verification_token;
-
 
       if (!verifyNotionSignature(rawBody, signature, verificationToken)) {
         console.warn("Rejected Notion verification handshake");
@@ -98,37 +106,53 @@ export async function POST(request: Request) {
       entity_type: payload.entity?.type,
     });
 
-    if (payload.type !== "page.content_updated") {
+    if (payload.type === "page.content_updated") {
+      const pageId = payload.entity?.id;
+
+      if (!pageId) {
+        return NextResponse.json(
+          {
+            ok: false,
+            received: true,
+            verified: true,
+            error: "Missing entity id",
+          },
+          { status: 400 },
+        );
+      }
+
+      const result = await syncNotionPage(pageId);
+
       return NextResponse.json({
         ok: true,
         received: true,
         verified: true,
-        synced: false,
-        reason: "event_not_supported_yet",
+        ...result,
       });
     }
 
-    const pageId = payload.entity?.id;
+    if (MANIFEST_EVENTS.has(payload.type ?? "")) {
+      const manifestResult = await computeManifestSync();
+      const applyResult = await applyManifestSync(manifestResult);
 
-    if (!pageId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          received: true,
-          verified: true,
-          error: "Missing entity id",
-        },
-        { status: 400 },
-      );
+      return NextResponse.json({
+        ok: true,
+        received: true,
+        verified: true,
+        synced: true,
+        event: payload.type,
+        diff: manifestResult.diff,
+        ...applyResult,
+      });
     }
-
-    const result = await syncNotionPage(pageId);
 
     return NextResponse.json({
       ok: true,
       received: true,
       verified: true,
-      ...result,
+      synced: false,
+      reason: "event_not_supported_yet",
+      event: payload.type,
     });
   } catch (error) {
     console.error("Notion webhook sync failed:", error);

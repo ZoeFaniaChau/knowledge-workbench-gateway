@@ -6,6 +6,7 @@ import {
 } from "./notion-data-source.ts";
 import {
   readGithubManifest,
+  writeGithubManifest,
 } from "./github-manifest.ts";
 import {
   diffManifests,
@@ -51,4 +52,33 @@ export async function computeManifestSync(): Promise<ManifestSyncResult> {
     after,
     diff,
   };
+}
+
+export function hasManifestChanges(
+  diff: ManifestDiff,
+): boolean {
+  return (
+    Object.keys(diff.added).length > 0 ||
+    Object.keys(diff.removed).length > 0 ||
+    Object.keys(diff.changed).length > 0
+  );
+}
+
+export async function applyManifestSync(
+  result: ManifestSyncResult,
+) {
+  if (!hasManifestChanges(result.diff)) {
+    return {
+      applied: false,
+      reason: "no_changes",
+    } as const;
+  }
+
+  const write = await writeGithubManifest(result.after);
+
+  return {
+    applied: true,
+    reason: "changes_detected",
+    write,
+  } as const;
 }

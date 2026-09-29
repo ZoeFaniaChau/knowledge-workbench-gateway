@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { computeManifestSync } from "../lib/manifest-sync.ts";
+import {
+  applyManifestSync,
+  computeManifestSync,
+} from "../lib/manifest-sync.ts";
 
 const notionPage = {
   id: "page-1",
@@ -46,7 +49,7 @@ const githubManifest = {
   workspace: "Zoe Fañiá Chau 的 Notion",
   data_source: "7dbb6604-ba39-483f-948b-92e6ba6208e3",
   objects: {},
-};
+} as const;
 
 function installFetch() {
   const calls: Array<{
@@ -181,7 +184,6 @@ test("returns an empty diff when Notion and GitHub already match", async () => {
 
   globalThis.fetch = async (
     input: string | URL | Request,
-    init?: RequestInit,
   ) => {
     const url =
       typeof input === "string"
@@ -240,4 +242,130 @@ test("returns an empty diff when Notion and GitHub already match", async () => {
     removed: {},
     changed: {},
   });
+});
+
+test("applies the Manifest when changes are detected", async () => {
+  process.env.GITHUB_TOKEN = "test-github-token";
+  process.env.GITHUB_REPOSITORY =
+    "ZoeFaniaChau/knowledge-workbench";
+
+  const result = {
+    before: githubManifest,
+    after: {
+      ...githubManifest,
+      objects: {
+        "page-1": {
+          title: "模块化不是拆分，而是让变化有边界",
+          kind: "Research",
+          path:
+            "knowledge/research/模块化不是拆分，而是让变化有边界.md",
+        },
+      },
+    },
+    diff: {
+      added: {
+        "page-1": {
+          title: "模块化不是拆分，而是让变化有边界",
+          kind: "Research",
+          path:
+            "knowledge/research/模块化不是拆分，而是让变化有边界.md",
+        },
+      },
+      removed: {},
+      changed: {},
+    },
+  };
+
+  let writeCalled = false;
+
+  globalThis.fetch = async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+    if (
+      url.includes(
+        "/repos/ZoeFaniaChau/knowledge-workbench/contents/sync/manifest.json",
+      )
+    ) {
+      if (init?.method === "PUT") {
+        writeCalled = true;
+
+        return new Response(
+          JSON.stringify({
+            content: {
+              path: "sync/manifest.json",
+            },
+            commit: {
+              sha: "commit-sha",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }
+
+      const encoded = Buffer.from(
+        JSON.stringify(githubManifest),
+        "utf8",
+      ).toString("base64");
+
+      return new Response(
+        JSON.stringify({
+          content: encoded,
+          encoding: "base64",
+          sha: "manifest-sha",
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
+    throw new Error("Unexpected fetch URL: " + url);
+  };
+
+  const applied = await applyManifestSync(result);
+
+  assert.equal(applied.applied, true);
+  assert.equal(applied.reason, "changes_detected");
+  assert.equal(writeCalled, true);
+});
+
+test("does not write the Manifest when there are no changes", async () => {
+  const result = {
+    before: githubManifest,
+    after: githubManifest,
+    diff: {
+      added: {},
+      removed: {},
+      changed: {},
+    },
+  };
+
+  let writeCalled = false;
+
+  globalThis.fetch = async () => {
+    writeCalled = true;
+    throw new Error("GitHub write should not be called");
+  };
+
+  const applied = await applyManifestSync(result);
+
+  assert.equal(applied.applied, false);
+  assert.equal(applied.reason, "no_changes");
+  assert.equal(writeCalled, false);
 });
