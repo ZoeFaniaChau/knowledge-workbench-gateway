@@ -40,6 +40,7 @@ async function updateNotionSyncStatus(
   status: SyncStatus,
   syncedAt?: string,
   githubUrl?: string,
+  githubSha?: string,
 ) {
   const properties: Record<string, unknown> = {
     "GitHub Sync Status": {
@@ -57,6 +58,19 @@ async function updateNotionSyncStatus(
     if (githubUrl) {
       properties["GitHub URL"] = {
         url: githubUrl,
+      };
+    }
+
+    if (githubSha) {
+      properties["GitHub Last Synced SHA"] = {
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content: githubSha,
+            },
+          },
+        ],
       };
     }
   }
@@ -214,6 +228,7 @@ export async function syncNotionPage(pageId: string) {
       "Synced",
       syncedAt,
       githubUrl,
+      result.content?.sha,
     );
 
     return {

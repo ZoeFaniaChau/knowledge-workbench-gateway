@@ -135,6 +135,7 @@ test("syncNotionPage syncs a manifest page through Notion and GitHub", async () 
   process.env.GITHUB_TOKEN = "test-github-token";
 
   const calls: Array<{ url: string; method: string }> = [];
+  const patchBodies: Array<Record<string, any>> = [];
 
   const restore = installFetch(async (url, init) => {
     const method = init?.method ?? "GET";
@@ -146,6 +147,7 @@ test("syncNotionPage syncs a manifest page through Notion and GitHub", async () 
 
     if (url === "https://api.notion.com/v1/pages/" + PAGE_ID) {
       if (method === "PATCH") {
+        patchBodies.push(JSON.parse(String(init?.body)));
         return jsonResponse({});
       }
 
@@ -225,6 +227,12 @@ test("syncNotionPage syncs a manifest page through Notion and GitHub", async () 
     );
 
     assert.equal(patchCalls.length, 2);
+    assert.equal(patchBodies.length, 2);
+
+    assert.equal(
+      patchBodies[1].properties["GitHub Last Synced SHA"].rich_text[0].text.content,
+      "new-file-sha",
+    );
   } finally {
     restore();
   }
