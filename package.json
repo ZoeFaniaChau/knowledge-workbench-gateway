@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "lint": "eslint",
-  "test:markdown": "node --test --experimental-strip-types tests/markdown.test.ts",
-  "test:github-write": "node --test --experimental-strip-types tests/github-write.test.ts",
-  "test:notion-webhook": "node --test --experimental-strip-types tests/notion-webhook.test.ts"
-},
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:markdown": "node --test --experimental-strip-types tests/markdown.test.ts",
+    "test:github-write": "node --test --experimental-strip-types tests/github-write.test.ts",
+    "test:notion-webhook": "node --test --experimental-strip-types tests/notion-webhook.test.ts",
+    "test:sync": "node --test --experimental-strip-types tests/sync.test.ts"
+  },
   "dependencies": {
     "next": "16.3.6",
     "react": "19.2.8",
