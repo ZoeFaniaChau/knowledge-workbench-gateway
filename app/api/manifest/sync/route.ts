@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
+  applyManifestSync,
   computeManifestSync,
 } from "@/lib/manifest-sync";
-import {
-  writeGithubManifest,
-} from "@/lib/github-manifest";
 
 export const runtime = "nodejs";
 
@@ -53,13 +51,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const writeResult = await writeGithubManifest(result.after);
+    const applyResult = await applyManifestSync(result);
 
     return NextResponse.json({
       ok: true,
-      applied: true,
+      ...applyResult,
       diff: result.diff,
-      write: writeResult,
     });
   } catch (error) {
     console.error("Manifest sync failed:", error);
