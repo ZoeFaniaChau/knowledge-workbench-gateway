@@ -20,16 +20,12 @@ test("maps a GitHub-targeted Notion page to a manifest entry", () => {
       Title: {
         type: "title",
         title: [
-          {
-            plain_text: "模块化不是拆分，而是让变化有边界",
-          },
+          { plain_text: "模块化不是拆分，而是让变化有边界" },
         ],
       },
       Kind: {
         type: "select",
-        select: {
-          name: "Research",
-        },
+        select: { name: "Research" },
       },
       "Output Target": {
         type: "multi_select",
@@ -71,7 +67,7 @@ test("maps a GitHub-targeted Notion page to a manifest entry", () => {
   });
 });
 
-test("excludes pages without GitHub output target", () => {
+test("includes pages without GitHub output target", () => {
   const page = {
     id: "page-2",
     properties: {
@@ -81,9 +77,7 @@ test("excludes pages without GitHub output target", () => {
       },
       Kind: {
         type: "select",
-        select: {
-          name: "Reference",
-        },
+        select: { name: "Reference" },
       },
       "Output Target": {
         type: "multi_select",
@@ -91,11 +85,7 @@ test("excludes pages without GitHub output target", () => {
       },
       "GitHub Path": {
         type: "rich_text",
-        rich_text: [
-          {
-            plain_text: "knowledge/reference/not-github.md",
-          },
-        ],
+        rich_text: [],
       },
     },
   };
@@ -105,10 +95,13 @@ test("excludes pages without GitHub output target", () => {
     baseManifest,
   );
 
-  assert.equal(manifest.objects["page-2"], undefined);
+  assert.equal(
+    manifest.objects["page-2"].path,
+    "knowledge/reference/not-github--page2.md",
+  );
 });
 
-test("excludes GitHub-targeted pages without a GitHub path", () => {
+test("generates a path for pages without GitHub Path", () => {
   const page = {
     id: "page-3",
     properties: {
@@ -118,9 +111,7 @@ test("excludes GitHub-targeted pages without a GitHub path", () => {
       },
       Kind: {
         type: "select",
-        select: {
-          name: "Reference",
-        },
+        select: { name: "Reference" },
       },
       "Output Target": {
         type: "multi_select",
@@ -138,7 +129,61 @@ test("excludes GitHub-targeted pages without a GitHub path", () => {
     baseManifest,
   );
 
-  assert.equal(manifest.objects["page-3"], undefined);
+  assert.equal(
+    manifest.objects["page-3"].path,
+    "knowledge/reference/missing-path--page3.md",
+  );
+});
+
+test("preserves the previous path when GitHub Path is blank", () => {
+  const page = {
+    id: "page-5",
+    properties: {
+      Title: {
+        type: "title",
+        title: [{ plain_text: "Renamed Title" }],
+      },
+      Kind: {
+        type: "select",
+        select: { name: "Research" },
+      },
+      "Output Target": {
+        type: "multi_select",
+        multi_select: [],
+      },
+      "GitHub Path": {
+        type: "rich_text",
+        rich_text: [],
+      },
+    },
+  };
+
+  const previousManifest = {
+    ...baseManifest,
+    objects: {
+      "page-5": {
+        title: "Old Title",
+        kind: "Research",
+        path: "knowledge/research/original-stable-path.md",
+      },
+    },
+  };
+
+  const manifest = buildManifestFromNotionPages(
+    [page],
+    baseManifest,
+    previousManifest,
+  );
+
+  assert.equal(
+    manifest.objects["page-5"].path,
+    "knowledge/research/original-stable-path.md",
+  );
+
+  assert.equal(
+    manifest.objects["page-5"].title,
+    "Renamed Title",
+  );
 });
 
 test("supports rich text split across multiple fragments", () => {
@@ -154,9 +199,7 @@ test("supports rich text split across multiple fragments", () => {
       },
       Kind: {
         type: "select",
-        select: {
-          name: "Research",
-        },
+        select: { name: "Research" },
       },
       "Output Target": {
         type: "multi_select",
@@ -165,12 +208,8 @@ test("supports rich text split across multiple fragments", () => {
       "GitHub Path": {
         type: "rich_text",
         rich_text: [
-          {
-            plain_text: "knowledge/research/",
-          },
-          {
-            plain_text: "split.md",
-          },
+          { plain_text: "knowledge/research/" },
+          { plain_text: "split.md" },
         ],
       },
     },
