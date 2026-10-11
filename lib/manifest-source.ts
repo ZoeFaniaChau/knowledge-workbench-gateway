@@ -8,22 +8,14 @@ export type NotionPageProperty = {
   type?: string;
   title?: Array<{
     plain_text?: string;
-    text?: {
-      content?: string;
-    };
+    text?: { content?: string };
   }>;
   rich_text?: Array<{
     plain_text?: string;
-    text?: {
-      content?: string;
-    };
+    text?: { content?: string };
   }>;
-  select?: {
-    name?: string;
-  } | null;
-  multi_select?: Array<{
-    name?: string;
-  }>;
+  select?: { name?: string } | null;
+  multi_select?: Array<{ name?: string }>;
 };
 
 export type NotionPage = {
@@ -31,32 +23,21 @@ export type NotionPage = {
   properties?: Record<string, NotionPageProperty>;
 };
 
-function getPlainText(
-  property: NotionPageProperty | undefined,
-): string {
-  if (!property) {
-    return "";
-  }
+function getPlainText(property: NotionPageProperty | undefined): string {
+  if (!property) return "";
 
-  const items =
-    property.title ??
-    property.rich_text ??
-    [];
+  const items = property.title ?? property.rich_text ?? [];
 
   return items
     .map((item) => item.plain_text ?? item.text?.content ?? "")
     .join("");
 }
 
-function getSelectName(
-  property: NotionPageProperty | undefined,
-): string {
+function getSelectName(property: NotionPageProperty | undefined): string {
   return property?.select?.name ?? "";
 }
 
-function getMultiSelectNames(
-  property: NotionPageProperty | undefined,
-): string[] {
+function getMultiSelectNames(property: NotionPageProperty | undefined): string[] {
   return (property?.multi_select ?? [])
     .map((item) => item.name ?? "")
     .filter(Boolean);
@@ -79,18 +60,16 @@ export function notionPageToManifestCandidate(
 export function buildManifestFromNotionPages(
   pages: NotionPage[],
   baseManifest: Omit<Manifest, "objects">,
+  previousManifest?: Manifest,
 ): Manifest {
   const objects: Manifest["objects"] = {};
 
   for (const page of pages) {
     const candidate = notionPageToManifestCandidate(page);
-    const entry = buildManifestEntry(candidate);
-
-    if (!entry) {
-      continue;
-    }
-
-    objects[page.id] = entry;
+    objects[page.id] = buildManifestEntry(
+      candidate,
+      previousManifest?.objects[page.id],
+    );
   }
 
   return {

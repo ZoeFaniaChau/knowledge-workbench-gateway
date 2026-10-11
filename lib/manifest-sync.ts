@@ -43,6 +43,7 @@ export async function computeManifestSync(): Promise<ManifestSyncResult> {
       workspace: MANIFEST_WORKSPACE,
       data_source: NOTION_DATA_SOURCE_ID,
     },
+    before
   );
 
   const diff = diffManifests(before, after);

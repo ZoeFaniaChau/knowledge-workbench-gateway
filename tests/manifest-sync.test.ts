@@ -369,3 +369,62 @@ test("does not write the Manifest when there are no changes", async () => {
   assert.equal(applied.reason, "no_changes");
   assert.equal(writeCalled, false);
 });
+test("aborts Manifest sync when GitHub Manifest cannot be read", async () => {
+  process.env.NOTION_API_TOKEN = "test-notion-token";
+  process.env.NOTION_DATA_SOURCE_ID =
+    "7dbb6604-ba39-483f-948b-92e6ba6208e3";
+  process.env.GITHUB_TOKEN = "test-github-token";
+  process.env.GITHUB_REPOSITORY =
+    "ZoeFaniaChau/knowledge-workbench";
+
+  let manifestWriteAttempted = false;
+
+  globalThis.fetch = async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+    if (url.includes("/data_sources/")) {
+      return new Response(
+        JSON.stringify({
+          results: [notionPage],
+          has_more: false,
+          next_cursor: null,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (
+      url.includes(
+        "/repos/ZoeFaniaChau/knowledge-workbench/contents/sync/manifest.json",
+      )
+    ) {
+      if (init?.method === "PUT") {
+        manifestWriteAttempted = true;
+      }
+
+      return new Response("GitHub unavailable", {
+        status: 503,
+      });
+    }
+
+    throw new Error("Unexpected fetch URL: " + url);
+  };
+
+  await assert.rejects(
+    computeManifestSync(),
+    /GitHub manifest read 503/,
+  );
+
+  assert.equal(manifestWriteAttempted, false);
+});

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildManifestEntry,
+  generateGithubPath,
   isGithubTarget,
   isValidGithubPath,
   upsertManifestEntry,
@@ -46,27 +47,46 @@ test("GitHub target with path becomes a manifest entry", () => {
   });
 });
 
-test("non-GitHub target is excluded", () => {
-  assert.equal(
+test("non-GitHub target remains in the manifest", () => {
+  assert.deepEqual(
     buildManifestEntry({
       ...baseCandidate,
       outputTarget: ["Notion CMS"],
     }),
-    null,
+    {
+      title: "模块化不是拆分，而是让变化有边界",
+      kind: "Research",
+      path: "knowledge/research/modularity.md",
+    },
   );
 });
 
-test("GitHub target without path is excluded", () => {
+test("generates a path when GitHub Path is missing", () => {
+  const result = buildManifestEntry({
+    ...baseCandidate,
+    githubPath: "   ",
+  });
+
   assert.equal(
-    buildManifestEntry({
-      ...baseCandidate,
-      githubPath: "   ",
-    }),
-    null,
+    result.path,
+    "knowledge/research/模块化不是拆分-而是让变化有边界--page1.md",
   );
 });
 
-test("upsert adds a GitHub manifest entry", () => {
+test("generates paths with the full normalized Notion page ID", () => {
+  assert.equal(
+    generateGithubPath({
+      ...baseCandidate,
+      id: "7dbb6604-ba39-483f-948b-92e6ba6208e3",
+      title: "Collision Resistant",
+      kind: "Research",
+      githubPath: "",
+    }),
+    "knowledge/research/collision-resistant--7dbb6604ba39483f948b92e6ba6208e3.md",
+  );
+});
+
+test("upsert adds a manifest entry", () => {
   const result = upsertManifestEntry(baseManifest, baseCandidate);
 
   assert.deepEqual(result.objects["page-1"], {
@@ -76,7 +96,7 @@ test("upsert adds a GitHub manifest entry", () => {
   });
 });
 
-test("upsert removes an entry when GitHub output is disabled", () => {
+test("upsert preserves an entry when GitHub output is disabled", () => {
   const manifest: Manifest = {
     ...baseManifest,
     objects: {
@@ -91,10 +111,15 @@ test("upsert removes an entry when GitHub output is disabled", () => {
   const result = upsertManifestEntry(manifest, {
     ...baseCandidate,
     outputTarget: ["Notion CMS"],
+    githubPath: "",
   });
 
-  assert.equal(result.objects["page-1"], undefined);
+  assert.equal(
+    result.objects["page-1"].path,
+    "knowledge/research/old.md",
+  );
 });
+
 test("accepts a normal relative GitHub path", () => {
   assert.equal(
     isValidGithubPath(
@@ -152,6 +177,20 @@ test("rejects Markdown links", () => {
 test("rejects paths containing line breaks", () => {
   assert.equal(
     isValidGithubPath("knowledge/research/example\n.md"),
+    false,
+  );
+});
+
+test("rejects paths containing backslashes", () => {
+  assert.equal(
+    isValidGithubPath("knowledge\\research\\example.md"),
+    false,
+  );
+});
+
+test("rejects paths containing NUL characters", () => {
+  assert.equal(
+    isValidGithubPath("knowledge/research/example\0.md"),
     false,
   );
 });
