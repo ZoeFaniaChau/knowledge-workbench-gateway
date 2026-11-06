@@ -9,7 +9,7 @@ import {
   type NotionBlock,
   type NotionRichText,
 } from "./markdown.ts";
-
+import { buildMarkdownDocument } from "./frontmatter.ts";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -208,7 +208,12 @@ export async function syncNotionPage(pageId: string) {
     const blocks = await getBlockChildren(pageId);
     const markdownBody = await renderBlocks(blocks);
     const title = getPageTitle(page);
-    const markdown = "# " + title + "\n\n" + markdownBody.trim() + "\n";
+    const markdown = buildMarkdownDocument({
+      pageId,
+      kind: manifestEntry.kind,
+      title,
+      body: markdownBody,
+    });
 
     const result = await writeGithubFile(
       manifestEntry.path,

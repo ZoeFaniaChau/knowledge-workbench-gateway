@@ -243,7 +243,7 @@ test("syncNotionPage skips GitHub write when content is unchanged", async () => 
   process.env.GITHUB_TOKEN = "test-github-token";
 
   const expectedMarkdown =
-    "# 模块化不是拆分，而是让变化有边界\n\nWebhook sync test\n";
+    "---\nsource: notion\nsource_page_id: \"" + PAGE_ID + "\"\nkind: \"Research\"\n---\n\n# 模块化不是拆分，而是让变化有边界\n\nWebhook sync test\n";
 
   let githubPutCalls = 0;
 
