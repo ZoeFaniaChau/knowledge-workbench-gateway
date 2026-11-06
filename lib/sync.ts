@@ -110,6 +110,20 @@ async function renderBlocks(blocks: NotionBlock[], depth = 0): Promise<string> {
   return parts.join("\n\n");
 }
 
+function renderExportMarkdown(pageId: string, kind: string, title: string, body: string): string {
+  // JSON string scalars are valid YAML double-quoted scalars and safely
+  // preserve quotes, colons, Unicode, and line breaks in metadata values.
+  const frontmatter = [
+    "---",
+    "source: notion",
+    "source_page_id: " + JSON.stringify(pageId),
+    "kind: " + JSON.stringify(kind),
+    "---",
+  ].join("\n");
+
+  return frontmatter + "\n\n# " + title + "\n\n" + body.trim() + "\n";
+}
+
 function getPageTitle(page: Awaited<ReturnType<typeof getPage>>): string {
   for (const property of Object.values(page.properties ?? {})) {
     if (property.type === "title" && property.title) return richTextToMarkdown(property.title);
@@ -208,7 +222,7 @@ export async function syncNotionPage(pageId: string) {
     const blocks = await getBlockChildren(pageId);
     const markdownBody = await renderBlocks(blocks);
     const title = getPageTitle(page);
-    const markdown = "# " + title + "\n\n" + markdownBody.trim() + "\n";
+    const markdown = renderExportMarkdown(pageId, manifestEntry.kind, title, markdownBody);
 
     const result = await writeGithubFile(
       manifestEntry.path,
