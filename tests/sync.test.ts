@@ -191,6 +191,10 @@ test("syncNotionPage syncs a manifest page through Notion and GitHub", async () 
       assert.equal(body.message, "sync: update " + FILE_PATH);
       assert.equal(body.branch, "main");
       assert.equal(typeof body.content, "string");
+      const exportedMarkdown = Buffer.from(body.content, "base64").toString("utf8");
+      assert.match(exportedMarkdown, new RegExp('^---\\nsource: notion\\nsource_page_id: "' + PAGE_ID + '"\\nkind: "Research"\\n---\\n\\n'));
+      assert.match(exportedMarkdown, /# 模块化不是拆分，而是让变化有边界/);
+      assert.match(exportedMarkdown, /Webhook sync test/);
       assert.equal(body.sha, "existing-sha");
 
       return jsonResponse({
@@ -243,7 +247,7 @@ test("syncNotionPage skips GitHub write when content is unchanged", async () => 
   process.env.GITHUB_TOKEN = "test-github-token";
 
   const expectedMarkdown =
-    "# 模块化不是拆分，而是让变化有边界\n\nWebhook sync test\n";
+    "---\nsource: notion\nsource_page_id: \"" + PAGE_ID + "\"\nkind: \"Research\"\n---\n\n# 模块化不是拆分，而是让变化有边界\n\nWebhook sync test\n";
 
   let githubPutCalls = 0;
 
